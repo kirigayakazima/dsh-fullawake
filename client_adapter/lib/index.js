@@ -35,6 +35,33 @@ const textOutput = {
   render: (_args, value) => [{ type: 'text', text: value.message }],
 }
 
+const snapshotOutput = {
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      message: { type: 'string', required: true },
+      images: {
+        type: 'array',
+        items: { type: 'json' },
+        description: '截屏图像附件列表',
+      },
+    },
+  },
+  render: (_args, value) => {
+    const blocks = []
+    if (Array.isArray(value?.images)) {
+      for (const attachment of value.images) {
+        if (attachment) blocks.push({ type: 'image', attachment })
+      }
+    }
+    if (value?.message) {
+      blocks.push({ type: 'text', text: value.message })
+    }
+    return blocks.length > 0 ? blocks : [{ type: 'text', text: '截屏成功' }]
+  },
+}
+
 export function apply(ctx, config = {}) {
   const gatewayUrl = String(config.gatewayUrl || process.env.FULLAWAKE_GATEWAY_URL || 'http://192.168.1.3:8765').replace(/\/+$/, '')
   const authToken = String(config.authToken || process.env.FULLAWAKE_AUTH_TOKEN || 'xiaoman-pc-bridge-secret-2026').trim()
@@ -281,7 +308,7 @@ export function apply(ctx, config = {}) {
           description: '可选的窗口句柄 ID（来自 pc_list_windows）。留空则截取整个主屏幕。',
         },
       },
-      output: textOutput,
+      output: snapshotOutput,
       async execute(args) {
         const rawHwnd = args && args.hwnd
         const numHwnd = typeof rawHwnd === 'number' ? rawHwnd : Number(rawHwnd)
@@ -289,7 +316,7 @@ export function apply(ctx, config = {}) {
 
         const res = await callGatewayTool('pc_snapshot', callArgs)
         if (!res.ok) {
-          return { message: `截取电脑画面失败：${res.error || 'PC 离线或网关未响应'}` }
+          return { message: `截取电脑画面失败：${res.error || 'PC 离线或网关未响应'}`, images: [] }
         }
 
         const textItem = res.content.find((c) => c.type === 'text')
@@ -300,7 +327,7 @@ export function apply(ctx, config = {}) {
           try {
             const p = JSON.parse(textItem.text)
             if (p.is_locked) {
-              return { message: '电脑现在是锁屏状态哦，小满看不到屏幕内容呢~' }
+              return { message: '电脑现在是锁屏状态哦，小满看不到屏幕内容呢~', images: [] }
             }
             if (p.target_window) {
               info = `（已定向截取窗口: ${p.target_window.title} [${p.target_window.process_name}]）`
@@ -309,12 +336,30 @@ export function apply(ctx, config = {}) {
         }
 
         if (imageItem && imageItem.data) {
+          const mime = imageItem.mimeType || 'image/png'
+          let imageRef = null
+          try {
+            let attachments = null
+            try { attachments = ctx?.attachments || (typeof ctx?.get === 'function' && ctx.get('attachments')) } catch {}
+            if (attachments && typeof attachments.saveImage === 'function') {
+              const buffer = Buffer.from(imageItem.data, 'base64')
+              imageRef = await attachments.saveImage({
+                data: buffer,
+                mediaType: mime,
+                name: `pc-snapshot-${Date.now()}.${mime.includes('jpeg') ? 'jpg' : 'png'}`,
+              })
+            }
+          } catch (err) {
+            console.warn('[FullAwake] 保存截屏图片附件失败:', err?.message || err)
+          }
+
           return {
             message: `[已获取电脑截屏画面 ${info}，图片大小 ${(imageItem.data.length / 1024).toFixed(1)} KB]`,
+            images: imageRef ? [imageRef] : [],
           }
         }
 
-        return { message: textItem ? textItem.text : '已执行截屏' }
+        return { message: textItem ? textItem.text : '已执行截屏', images: [] }
       },
     }))
   )
