@@ -1,3 +1,10 @@
+> [!IMPORTANT]
+> **此仓库已正式合并入统一伴侣主仓 [LucidHeart](https://github.com/kirigayakazima/LucidHeart)。**  
+> 
+> 本仓库现已进入只读归档状态。手机端感官桥迁移至 [`packages/fullawake`](https://github.com/kirigayakazima/LucidHeart/tree/main/packages/fullawake)，PC 网关迁移至 [`apps/fullawake-pc`](https://github.com/kirigayakazima/LucidHeart/tree/main/apps/fullawake-pc)。
+
+---
+
 # FullAwake (全觉)
 
 FullAwake 是为手机端小满（DSHA）构建的 PC 端感官与具身能力扩展矩阵（Body & Sensor Gateway）。
